@@ -11,21 +11,21 @@ import (
 )
 
 // var Clients = make(map[[16]string]chan string)
-var Clients = make(map[[16]byte]chan []byte)
+var Clients = make(map[string]chan []byte)
 
 func (m Message)Send(message string) {
 	m.Message = message
 	var buff []byte
-	for i := 0; i < 16; i++ {
-		buff = append(buff, m.IDSndr[i])
-	}
+
+	copy(buff,m.IDSndr[:])
+
 	buff = append(buff, []byte(m.Message)...)
 	buff = append(buff, '\x00')
 	Clients[m.IDRcvr] <- buff
   }
   
 
-func NewMessage(from, to [16]byte) Message {
+func NewMessage(from, to string) Message {
   m := Message{
     IDSndr: from,
     IDRcvr: to,
@@ -34,7 +34,7 @@ func NewMessage(from, to [16]byte) Message {
 }
 
 
-func HandleClient(uid [16]byte, conn net.Conn, v int) {
+func HandleClient(uid string, conn net.Conn, v int) {
 	go func() {
 	  for {
 		/*
@@ -65,18 +65,20 @@ func HandleClient(uid [16]byte, conn net.Conn, v int) {
 		m.Send("message") 
 	  }
 	}()
-	go func() {
+	//go func() {
 		for {
 			msg := <-Clients[uid]
 				if v > 3 {
 						log.Printf("+ received %s ", hex.EncodeToString(uid[:]))
 					}
 					_, err := conn.Write(msg)
-					println("aaaaa")
-					Err(err)
+					if err != nil {
+						log.Printf("Remote host %s %s",uid,err.Error())
+						break
+					}
 			}
 			println("xxx")
-	}()
+	//}()
 	//log.Printf("Remote host %s %s id done", conn.RemoteAddr().String(), hex.EncodeToString(uid[:]))
 }
 
