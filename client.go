@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
 	"io"
 	"log"
 	"net"
@@ -10,30 +9,26 @@ import (
 )
 
 func ConnectRemoteHost(host string) {
-	NullCli := []byte{
-		255,255,255,255,
-		255,255,255,255,
-		255,255,255,255,
-		255,255,255,255,
-	}
-
 	log.Printf("Connect to %s",host)
 	conn, err := net.Dial("tcp", host) // 0.0.0.0:8080
 	Err(err)
 	defer conn.Close()
 
-	conn.Write(NullCli)
-	b := make([]byte, 16)
-	conn.Read(b)
-	log.Printf("%s",hex.EncodeToString(b))
+	conn.Write([]byte("elf"+"\x00"))
+
+	data, err := bufio.NewReader(conn).ReadBytes(0x00)
+	if err != nil {
+		log.Printf("%s", err.Error())
+	}
+	log.Printf("%s", string(data))
 	
 	for {
-		id := "52fdfc072182654f163f5f0f9a621d72"
+		id := "gnome" // target id
 		var buff []byte
-		x,_ := hex.DecodeString("")
-		copy(buff, x)
-		targetid,_ := hex.DecodeString(id)
-		buff = append(buff, targetid...)
+
+		buff = append(buff,	[]byte(id)...)
+		buff = append(buff, '\xff')
+		buff = append(buff, []byte("probe")...)
 		buff = append(buff, '\x00')
 		log.Printf("send to %s", id)
 		conn.Write(buff)
@@ -43,32 +38,33 @@ func ConnectRemoteHost(host string) {
 
 func ConnectRemoteForDebugging(host string) {
 	log.Println("Debugging Client")
-	NullCli := []byte{
-		255,255,255,255,
-		255,255,255,255,
-		255,255,255,255,
-		255,255,255,255,
-	}
 
 	conn, err := net.Dial("tcp", host)
 	Err(err)
 	defer conn.Close()
 
 	log.Printf("Connected to %s", host)
-	conn.Write(NullCli)
-	b := make([]byte, 16)
-	conn.Read(b)
-	log.Printf("Id: %s",hex.EncodeToString(b))
+	conn.Write([]byte("gnome"+"\x00")) // send local username
+
+	data, err := bufio.NewReader(conn).ReadBytes(0x00) // receive "username_connected"
+	if err != nil {
+		log.Printf("%s", err.Error())
+	}
+	log.Printf("%s", string(data))
 	
 	for {
-		buff, err := bufio.NewReader(conn).ReadBytes(0x00)
+		data, err := bufio.NewReader(conn).ReadBytes(0x00)
 		if err != nil {
 			if err != io.EOF {
 				Err(err)
 			}
 		}
-		var rhuid [16]byte
-		copy(rhuid[:],buff)
-		log.Printf("Data from %s",hex.EncodeToString(rhuid[:]))
+		senderName := GetUserName(data)
+		message, err := GetMessage(data)
+		if err != nil {
+			log.Printf("%s",err.Error())
+		}
+
+		log.Printf("%s-> %s",string(senderName), string(message))
 	}
 }

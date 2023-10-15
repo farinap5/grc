@@ -11,7 +11,6 @@ type client struct {
 	Channel chan []byte
 	nick []byte
 }
-
 var a = make(map[[16]byte]client)
 
 VVVVVVVVVVVVVV\xFFMMMMMMMMMMMMMMMMMM\x00

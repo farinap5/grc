@@ -2,8 +2,7 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/hex"
+	//"fmt"
 	"io"
 	"log"
 	"net"
@@ -17,13 +16,14 @@ func (m Message)Send(message string) {
 	m.Message = message
 	var buff []byte
 
-	copy(buff,m.IDSndr[:])
-
+	buff = append(buff, []byte(m.IDSndr)...)
+	//buff = append(buff, '\xff')
 	buff = append(buff, []byte(m.Message)...)
 	buff = append(buff, '\x00')
+	//fmt.Println(buff)
+	//fmt.Println([]byte(m.IDRcvr))
 	Clients[m.IDRcvr] <- buff
-  }
-  
+}
 
 func NewMessage(from, to string) Message {
   m := Message{
@@ -33,52 +33,61 @@ func NewMessage(from, to string) Message {
   return m
 }
 
-
 func HandleClient(uid string, conn net.Conn, v int) {
+	//println(uid)
+	//fmt.Println([]byte(uid))
 	go func() {
 	  for {
 		/*
 			This loop id for my client to send messages
 			The server receives data from socker, will deserialize it and pass to the client
 			receive data from socket (my client)
+
+			Stream -> name\xffmessage\x00
 		*/
-	   	buff, err := bufio.NewReader(conn).ReadBytes(0x00)
+	   	data, err := bufio.NewReader(conn).ReadBytes(0x00)
 		if err != nil {
 			if err == io.EOF {
-				println(err.Error())
+				log.Printf("Remote host %s EOF receive loop",conn.RemoteAddr())
 				break
 			} else {
-				println(err.Error())
+				log.Printf("Remote host %s close due %s", conn.RemoteAddr(), err.Error())
 				break
 			}
 		}
 
+		toName := GetUserName(data)
+		message,err := GetMessage(data)
+		if err != nil {
+			log.Printf("Remote host %s error %s", conn.RemoteAddr(), err.Error())
+			break
+		}
+
 		if v > 2 {
-			log.Printf("Got buffer from %s %s",conn.RemoteAddr().String(),hex.EncodeToString(uid[:]))
+			log.Printf("Got buffer from %s %s", conn.RemoteAddr().String(), uid)
 		}
-		var toId [16]byte
-		copy(toId[:],buff)
+
+		toNameString := string(toName)
 		if v > 3 {
-			log.Printf("+ send to %s",hex.EncodeToString(toId[:]))
+			log.Printf("+ send to %s", toNameString)
 		}
-		m := NewMessage(uid,toId)
-		m.Send("message") 
+		m := NewMessage(uid,toNameString)
+		m.Send(string(message)) 
 	  }
 	}()
-	//go func() {
-		for {
-			msg := <-Clients[uid]
-				if v > 3 {
-						log.Printf("+ received %s ", hex.EncodeToString(uid[:]))
-					}
-					_, err := conn.Write(msg)
-					if err != nil {
-						log.Printf("Remote host %s %s",uid,err.Error())
-						break
-					}
-			}
-			println("xxx")
-	//}()
+	for {
+		msg := <-Clients[uid]
+		//println(msg)
+		if v > 3 {
+			log.Printf("+ received %s ", uid)
+		}
+		_, err := conn.Write(msg)
+		if err != nil {
+			log.Printf("Remote host %s %s",uid,err.Error())
+			break
+		}
+	}
+	println("xxx")
 	//log.Printf("Remote host %s %s id done", conn.RemoteAddr().String(), hex.EncodeToString(uid[:]))
 }
 
@@ -86,42 +95,24 @@ func HandleClient(uid string, conn net.Conn, v int) {
 /*
   If the client has a ID assigned he must start the conversation
 */
-func ConnectClient(conn net.Conn) ([16]byte,error) {
-	var uid [16]byte
-	NullCli := []byte{
-		255,255,255,255,
-		255,255,255,255,
-		255,255,255,255,
-		255,255,255,255,
+func ConnectClient(conn net.Conn) (string,error) {
+	Name, err := bufio.NewReader(conn).ReadBytes(0x00)
+	if err != nil {
+		return "", err
 	}
 	
 	/*
-		The id must be passed ending with null byte
-		like: byte(blablabla)\x00
-		id: 16 bytes
-	*/
-	//data, err := bufio.NewReader(conn).ReadBytes(0x00)
-	// Byffer to store ID of the reote host
-	buff := make([]byte, 16)
-	// Read from socket
-	_, err := conn.Read(buff)
-	if err != nil {
-		return uid,err
-	}
-	// if data from socket is not a valid ID, create one
-	// invalid id == \xff * 16
-	if bytes.Equal(NullCli,buff) {
-		uid = GenRandomData()
-		log.Printf("Remote host %s assigned %s",conn.RemoteAddr().String(),hex.EncodeToString(uid[:]))
-	} else {
-		// convert buffer (id) from ID bytes to string hex equivalent 
-		copy(uid[:],buff)
-		log.Printf("Remote host %s known as %s",conn.RemoteAddr().String(),uid)
-	}
+		Receive the username from the socket
+		Create a channel and map it to be callable from the name
 
+		receive: elf\x00
+		turn into a string erasing the null byte ending.
+	*/
+
+	NameString := string(Name[:len(Name)-1])
 	clientChann := make(chan []byte)
-	Clients[uid] = clientChann
-	return uid,nil
+	Clients[NameString] = clientChann
+	return NameString, nil
 }
 
 func StartServer(host string, verbosity int) {
@@ -135,25 +126,29 @@ func StartServer(host string, verbosity int) {
 	defer bind.Close()
 	for {
 		conn, err := bind.Accept()
-		
 		Err(err)
+
 	  	if verbosity > 0 {
 			log.Printf("Remote host %s connected", conn.RemoteAddr().String())
 	  	}
 
-	  	uid, err := ConnectClient(conn)
+	  	uid, err := ConnectClient(conn) // uid = name
 	  	if err != nil  {
 			if err != io.EOF {
 				log.Printf("Remote host %s closed", conn.RemoteAddr().String())
 				Err(err)
 			} else {
-				log.Printf("Remote host %s EOF", conn.RemoteAddr().String())
+				log.Printf("Remote host %s EOF 1", conn.RemoteAddr().String())
 			}
-	  	}
-		// send ID to client
-	  	conn.Write(uid[:])
-
-		// fvck
-		go HandleClient(uid,conn,verbosity)
+	  	} else {
+			if verbosity > 0 {
+				log.Printf("+ %s", uid)
+			}
+			// send ID to client
+			  conn.Write([]byte(uid+"_connected"+"\x00"))
+	
+			// fvck
+			go HandleClient(uid,conn,verbosity)
+		}
 	}
 }
