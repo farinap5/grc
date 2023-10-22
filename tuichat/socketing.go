@@ -1,4 +1,4 @@
-package chatsrc
+package tuichat
 
 import (
 	"bufio"
@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"strings"
-
 	//"github.com/marcusolsson/tui-go"
 )
 
@@ -57,9 +56,11 @@ func Binder() {
 		data, err := bufio.NewReader(connx).ReadBytes(0x00)
 		if err != nil {
 			if err != io.EOF {
-					PrintMessage("system","End Of File. Closed!")
+					//PrintMessage("system","End Of File. Closed!")
+					break
 			} else {
 				PrintMessage("system",err.Error())
+				break
 			}
 		} else {
 			senderName := GetUserName(data)

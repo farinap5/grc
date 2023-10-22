@@ -36,16 +36,23 @@ func ConnectRemoteHost(host string) {
 	}
 }
 
+func inv(s string) (x string) {
+    for _, v := range s {
+        x = string(v) + x
+    }
+    return
+}
+
 func ConnectRemoteForDebugging(host string) {
 	log.Println("Debugging Client")
 
+	username := "bot"
 	conn, err := net.Dial("tcp", host)
 	Err(err)
 	defer conn.Close()
 
 	log.Printf("Connected to %s", host)
-	conn.Write([]byte("gnome"+"\x00")) // send local username
-
+	conn.Write([]byte(username+"\x00")) // send local username
 	data, err := bufio.NewReader(conn).ReadBytes(0x00) // receive "username_connected"
 	if err != nil {
 		log.Printf("%s", err.Error())
@@ -65,6 +72,20 @@ func ConnectRemoteForDebugging(host string) {
 			log.Printf("%s",err.Error())
 		}
 
-		log.Printf("%s-> %s",string(senderName), string(message))
+		log.Printf("Message from %s : %s",string(senderName), string(message))
+		if conn == nil {
+			log.Printf("Connection Closed")
+			break
+		}
+
+		message = message[1:]
+		return_message := inv(string(message))
+		
+		var buff []byte
+		buff = append(buff, []byte(senderName)...)
+		buff = append(buff, '\xff')
+		buff = append(buff, []byte(return_message)...)
+		buff = append(buff, '\x00')
+		conn.Write(buff)
 	}
 }

@@ -1,4 +1,4 @@
-package chatsrc
+package tuichat
 
 import (
 	"fmt"
@@ -34,6 +34,12 @@ func Cmds(cmd string) string {
 		}
 		TargetId = cmdS[1]
 		return "Talking to "+TargetId
+	} else if cmdS[0][1:] == "broadcast" {
+		if len(cmdS) < 2 {
+			return "Error! Type: !broadcast message"
+		}
+		Send(string('\x01'), strings.Join(cmdS[1:], " ")) // Send via socket
+		return "Broadcasting message"
 	} else {
 		return "Not a command"
 	}

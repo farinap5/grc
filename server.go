@@ -66,13 +66,22 @@ func HandleClient(uid string, conn net.Conn, v int) {
 		if v > 2 {
 			log.Printf("Got buffer from %s %s", conn.RemoteAddr().String(), uid)
 		}
+		if (toName[0] == '\x01') {
+			log.Printf("Broadcast issued ");
+			for toNameString := range Clients {
+				m := NewMessage(uid, toNameString)
+				m.Send(string(message))
+			}  
 
-		toNameString := string(toName)
-		if v > 3 {
-			log.Printf("+ send to %s", toNameString)
+		} else {
+			toNameString := string(toName)
+			if v > 3 {
+				log.Printf("+ send to %s", toNameString)
+			}
+			m := NewMessage(uid,toNameString)
+			m.Send(string(message)) 
 		}
-		m := NewMessage(uid,toNameString)
-		m.Send(string(message)) 
+		
 	  }
 	}()
 	for {
