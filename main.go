@@ -11,17 +11,16 @@ func main() {
   var intf = flag.Bool("i", true, "Graphical Interface");
   var vrbt = flag.Int("v",1,"Verbosiy: 0=Silent 2=log all")
   var lstn = flag.Bool("l",false,"Listen for connection.")
-  var dbgg = flag.Bool("d",false,"Debugging client.")
   var robo = flag.Bool("r",false,"Bot mode");
   flag.Parse()
 
 
   if *robo {
     ConnectRemoteForDebugging(*host) 
-  }
-
-  if *intf && !*lstn {
+    
+  } else if *intf && !*lstn {
     tuichat.Start()
+
   } else { 
     if *vrbt > 0 {
       log.Printf("### GRC - Golang Relay Chat Starting ###")
@@ -29,11 +28,7 @@ func main() {
     if *lstn {
       StartServer(*host, *vrbt)
     } else {
-      if *dbgg {
-        ConnectRemoteForDebugging(*host) 
-      } else {
-        ConnectRemoteHost(*host)
-      }
+      ConnectRemoteHost(*host)
     }
   }
 }
